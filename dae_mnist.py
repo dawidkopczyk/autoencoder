@@ -3,17 +3,9 @@ import matplotlib.pyplot as plt
 
 from keras.models import Model
 from keras.layers import (Input, Conv2D, MaxPooling2D, UpSampling2D, LeakyReLU)
+
+# Load data
 from keras.datasets import mnist
-from keras.callbacks import TensorBoard
-
-log_dir = 'C:/Users/dawidkot/Documents/Python Scripts/Python Medium/DAE/tmp/tb'
-# cd C:/Users/dawidkot/Documents/Python Scripts/Python Medium/DAE
-# tensorboard --logdir="C:/Users/dawidkot/Documents/Python Scripts/Python Medium/DAE/tmp/tb"
-# http://localhost:6006/
-
-batch_size = 128
-epochs = 20
-noise_factor = 0.5
 
 # input image dimensions
 img_rows, img_cols = 28, 28                          
@@ -28,6 +20,7 @@ x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
 x_train = x_train.astype('float32') / 255
 x_test = x_test.astype('float32') / 255
 
+noise_factor = 0.5
 x_train_noisy = x_train + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=x_train.shape)
 x_test_noisy = x_test + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=x_test.shape)
 x_train_noisy = np.clip(x_train_noisy, 0., 1.)
@@ -36,7 +29,7 @@ x_test_noisy = np.clip(x_test_noisy, 0., 1.)
 print(x_train.shape[0], ' train samples')
 print(x_test.shape[0], ' test samples')
     
-def DAE(features_shape, act='relu'):
+def DAE_CNN(features_shape, act='relu'):
 
     # Input
     x = Input(name='inputs', shape=features_shape, dtype='float32')
@@ -60,15 +53,14 @@ def DAE(features_shape, act='relu'):
     
     return Model(inputs=x, outputs=dec)
 
-autoenc = DAE(input_shape, act=LeakyReLU(alpha=0.1))
+batch_size = 128
+epochs = 40
+
+autoenc = DAE_CNN(input_shape, act=LeakyReLU(alpha=0.1))
 autoenc.compile(optimizer='adadelta', loss='binary_crossentropy')
 
-autoenc.fit(x_train_noisy, x_train,
-                epochs=epochs,
-                batch_size=batch_size,
-                shuffle=True,
-                validation_data=(x_test_noisy, x_test),
-                callbacks=[TensorBoard(log_dir=log_dir, histogram_freq=0, write_graph=False)])
+autoenc.fit(x_train_noisy, x_train, epochs=epochs, batch_size=batch_size,
+            shuffle=True, validation_data=(x_test_noisy, x_test))
 
 decoded_imgs = autoenc.predict(x_test_noisy)
 
