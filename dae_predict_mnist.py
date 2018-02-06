@@ -4,20 +4,10 @@ import matplotlib.pyplot as plt
 from keras.models import Model
 from keras.callbacks import ModelCheckpoint
 from keras.layers import (Input, Dense, Concatenate)
-from keras.datasets import mnist
-from keras.callbacks import TensorBoard
 from keras.utils import np_utils
 
-log_dir = 'C:/Users/dawidkot/Documents/Python Scripts/Python Medium/DAE/tmp/tb'
-log_dir2 = 'C:/Users/dawidkot/Documents/Python Scripts/Python Medium/DAE/tmp/tb2'
-# cd C:/Users/dawidkot/Documents/Python Scripts/Python Medium/DAE
-# tensorboard --logdir="C:/Users/dawidkot/Documents/Python Scripts/Python Medium/DAE/tmp/tb"
-# http://localhost:6006/
-
-batch_size = 128
-epochs = 20
-noise_factor = 0.5
-model_fname = 'dae_deep'
+# Load data
+from keras.datasets import mnist
 
 # input image dimensions
 img_rows, img_cols = 28, 28                          
@@ -32,6 +22,7 @@ x_test = x_test.reshape(x_test.shape[0], np.prod(x_test.shape[1:]))
 x_train = x_train.astype('float32') / 255
 x_test = x_test.astype('float32') / 255
 
+noise_factor = 0.5
 x_train_noisy = x_train + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=x_train.shape)
 x_test_noisy = x_test + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=x_test.shape)
 x_train_noisy = np.clip(x_train_noisy, 0., 1.)
@@ -42,7 +33,7 @@ x_feat_train_noisy = np.concatenate((x_train_noisy, x_test_noisy), axis=0)
 
 print(x_feat_train_noisy.shape[0], ' dae train samples')
     
-def dae_deep(features_shape, act='relu'):
+def DEEP_DAE(features_shape, act='relu'):
 
     # Input
     x = Input(name='inputs', shape=features_shape, dtype='float32')
@@ -59,21 +50,14 @@ def dae_deep(features_shape, act='relu'):
     
     return Model(inputs=x, outputs=dec)
 
-callbacks = [TensorBoard(log_dir=log_dir, histogram_freq=0, write_graph=False),
-             ModelCheckpoint(monitor='loss',
-                             filepath=model_fname + '.hdf5',
-                             save_best_only=True,
-                             save_weights_only=True,
-                             mode='min')]
+batch_size = 128
+epochs = 40
              
-autoenc = dae_deep(input_shape)
+autoenc = DEEP_DAE(input_shape)
 autoenc.compile(optimizer='adadelta', loss='binary_crossentropy')
 
-autoenc.fit(x_feat_train_noisy, x_feat_train,
-            epochs=epochs,
-            batch_size=batch_size,
-            shuffle=True,
-            callbacks=callbacks)
+autoenc.fit(x_feat_train_noisy, x_feat_train, epochs=epochs, 
+            batch_size=batch_size, shuffle=True)
 
 decoded_imgs = autoenc.predict(x_feat_train_noisy)
 
@@ -95,8 +79,7 @@ for i in range(1,n+1):
     ax.get_yaxis().set_visible(False)
 plt.show()
 
-def dae_features(model, model_fname):
-    model.load_weights(model_fname)
+def FEATURES(model):
     input_ = model.get_layer('inputs').input
     feat1 = model.get_layer('dense1').output
     feat2 = model.get_layer('dense2').output
@@ -106,13 +89,13 @@ def dae_features(model, model_fname):
                       outputs=[feat])
     return model
 
-_model = dae_features(autoenc, model_fname + '.hdf5')
+_model = FEATURES(autoenc)
 features_train = _model.predict(x_train)
 features_test = _model.predict(x_test)
 print(features_train.shape, ' train samples shape')
 print(features_test.shape, ' train samples shape')
 
-def deep_nn(features_shape, num_classes, act='relu'):
+def DNN(features_shape, num_classes, act='relu'):
 
     # Input
     x = Input(name='inputs', shape=features_shape, dtype='float32')
@@ -134,21 +117,26 @@ num_classes = 10
 
 y_train_ohe = np_utils.to_categorical(y_train, num_classes)
 y_test_ohe = np_utils.to_categorical(y_test, num_classes)
+ 
+batch_size = 128
+epochs = 20
+model_fname = 'dnn'
 
-callbacks = [TensorBoard(log_dir=log_dir2, histogram_freq=0, write_graph=False)]
-             
-deep = deep_nn(input_shape2, num_classes)
+callbacks = [ModelCheckpoint(monitor='val_acc', filepath=model_fname + '.hdf5',
+                             save_best_only=True, save_weights_only=True,
+                             mode='min')]
+            
+deep = DNN(input_shape2, num_classes)
 deep.compile(optimizer='adadelta', loss='binary_crossentropy', metrics=['acc'])
 
-deep.fit(features_train, y_train_ohe,
-            epochs=epochs,
-            batch_size=batch_size,
-            shuffle=True,
-            validation_data=(features_test, y_test_ohe),
-            callbacks=callbacks)
+history = deep.fit(features_train, y_train_ohe, epochs=epochs, 
+                   batch_size=batch_size, shuffle=True,
+                   validation_data=(features_test, y_test_ohe), 
+                   callbacks=callbacks)
 
 # The predict_classes function outputs the highest probability class
 # according to the trained classifier for each input example.
+deep.load_weights(model_fname + '.hdf5')
 predictions = deep.predict(features_test)
 predicted_classes = np.argmax(predictions, axis=1)
 
